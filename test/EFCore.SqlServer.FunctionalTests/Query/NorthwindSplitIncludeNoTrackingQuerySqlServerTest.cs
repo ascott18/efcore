@@ -22,14 +22,68 @@ public class NorthwindSplitIncludeNoTrackingQuerySqlServerTest : NorthwindSplitI
         => TestHelpers.AssertAllMethodsOverridden(GetType());
 
     public override async Task Include_collection_skip_take_no_order_by(bool async)
-        => Assert.Equal(
-            SqlServerStrings.SplitQueryOffsetWithoutOrderBy,
-            (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Include_collection_skip_take_no_order_by(async))).Message);
+    {
+        await base.Include_collection_skip_take_no_order_by(async);
+
+        // This test previously asserted an error only because the ORDER BY was not
+        // getting added to the subquery, even though it *was* always added to the parent query.
+        AssertSql(
+        """
+@__p_0='10'
+@__p_1='5'
+
+SELECT [c].[CustomerID], [c].[Address], [c].[City], [c].[CompanyName], [c].[ContactName], [c].[ContactTitle], [c].[Country], [c].[Fax], [c].[Phone], [c].[PostalCode], [c].[Region]
+FROM [Customers] AS [c]
+ORDER BY [c].[CustomerID]
+OFFSET @__p_0 ROWS FETCH NEXT @__p_1 ROWS ONLY
+""",
+                        //
+                        """
+@__p_0='10'
+@__p_1='5'
+
+SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate], [t].[CustomerID]
+FROM (
+    SELECT [c].[CustomerID]
+    FROM [Customers] AS [c]
+    ORDER BY [c].[CustomerID]
+    OFFSET @__p_0 ROWS FETCH NEXT @__p_1 ROWS ONLY
+) AS [t]
+INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
+ORDER BY [t].[CustomerID]
+""");
+    }
 
     public override async Task Include_collection_skip_no_order_by(bool async)
-        => Assert.Equal(
-            SqlServerStrings.SplitQueryOffsetWithoutOrderBy,
-            (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Include_collection_skip_no_order_by(async))).Message);
+    {
+        await base.Include_collection_skip_no_order_by(async);
+
+        // This test previously asserted an error only because the ORDER BY was not
+        // getting added to the subquery, even though it *was* always added to the parent query.
+        AssertSql(
+"""
+@__p_0='10'
+
+SELECT [c].[CustomerID], [c].[Address], [c].[City], [c].[CompanyName], [c].[ContactName], [c].[ContactTitle], [c].[Country], [c].[Fax], [c].[Phone], [c].[PostalCode], [c].[Region]
+FROM [Customers] AS [c]
+ORDER BY [c].[CustomerID]
+OFFSET @__p_0 ROWS
+""",
+                //
+                """
+@__p_0='10'
+
+SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate], [t].[CustomerID]
+FROM (
+    SELECT [c].[CustomerID]
+    FROM [Customers] AS [c]
+    ORDER BY [c].[CustomerID]
+    OFFSET @__p_0 ROWS
+) AS [t]
+INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
+ORDER BY [t].[CustomerID]
+""");
+    }
 
     public override async Task Include_reference_GroupBy_Select(bool async)
     {
@@ -75,6 +129,7 @@ FROM (
     SELECT TOP(1) [o].[OrderID]
     FROM [Orders] AS [o]
     WHERE [o].[OrderID] = 10248
+    ORDER BY [o].[OrderID]
 ) AS [t]
 INNER JOIN (
     SELECT [o0].[OrderID], [o0].[ProductID], [o0].[Discount], [o0].[Quantity], [o0].[UnitPrice], [p].[ProductID] AS [ProductID0], [p].[Discontinued], [p].[ProductName], [p].[SupplierID], [p].[UnitPrice] AS [UnitPrice0], [p].[UnitsInStock]
@@ -143,7 +198,7 @@ FROM (
             FROM OPENJSON(@__list_0) WITH ([value] nchar(5) '$') AS [l]
         ) THEN CAST(1 AS bit)
         ELSE CAST(0 AS bit)
-    END
+    END, [c].[CustomerID]
     OFFSET @__p_1 ROWS
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
@@ -181,7 +236,7 @@ FROM (
         SELECT TOP(1) [o].[OrderDate]
         FROM [Orders] AS [o]
         WHERE [c].[CustomerID] = [o].[CustomerID]
-        ORDER BY [o].[OrderDate] DESC) DESC
+        ORDER BY [o].[OrderDate] DESC) DESC, [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o0] ON [t].[CustomerID] = [o0].[CustomerID]
 ORDER BY [t].[c] DESC, [t].[CustomerID]
@@ -346,7 +401,7 @@ FROM (
         ORDER BY [c0].[CustomerID]
         OFFSET 2 ROWS FETCH NEXT 2 ROWS ONLY
     ) AS [t0]
-    ORDER BY [t].[CustomerID]
+    ORDER BY [t].[CustomerID], [t0].[CustomerID]
 ) AS [t1]
 INNER JOIN [Orders] AS [o] ON [t1].[CustomerID] = [o].[CustomerID]
 ORDER BY [t1].[CustomerID], [t1].[CustomerID0]
@@ -370,7 +425,7 @@ FROM (
         ORDER BY [c0].[CustomerID]
         OFFSET 2 ROWS FETCH NEXT 2 ROWS ONLY
     ) AS [t0]
-    ORDER BY [t].[CustomerID]
+    ORDER BY [t].[CustomerID], [t0].[CustomerID]
 ) AS [t1]
 INNER JOIN [Orders] AS [o] ON [t1].[CustomerID0] = [o].[CustomerID]
 ORDER BY [t1].[CustomerID], [t1].[CustomerID0]
@@ -527,7 +582,7 @@ FROM (
     END, CASE
         WHEN [c].[CustomerID] IS NOT NULL THEN [c].[City]
         ELSE N''
-    END
+    END, [o].[OrderID], [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Order Details] AS [o0] ON [t].[OrderID] = [o0].[OrderID]
 ORDER BY [t].[c], [t].[c0], [t].[OrderID], [t].[CustomerID]
@@ -729,7 +784,7 @@ SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate], [t].[
 FROM (
     SELECT TOP(1) [c].[CustomerID], [c].[CompanyName]
     FROM [Customers] AS [c]
-    ORDER BY [c].[CompanyName] DESC
+    ORDER BY [c].[CompanyName] DESC, [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
 ORDER BY [t].[CompanyName] DESC, [t].[CustomerID]
@@ -923,7 +978,7 @@ FROM (
         SELECT TOP(1) [o].[OrderDate]
         FROM [Orders] AS [o]
         WHERE [c].[CustomerID] = [o].[CustomerID]
-        ORDER BY [o].[EmployeeID])
+        ORDER BY [o].[EmployeeID]), [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o0] ON [t].[CustomerID] = [o0].[CustomerID]
 ORDER BY [t].[c], [t].[CustomerID]
@@ -946,7 +1001,7 @@ SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate], [t].[
 FROM (
     SELECT TOP(1) [c].[CustomerID], [c].[CompanyName]
     FROM [Customers] AS [c]
-    ORDER BY [c].[CompanyName] DESC
+    ORDER BY [c].[CompanyName] DESC, [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
 ORDER BY [t].[CompanyName] DESC, [t].[CustomerID]
@@ -1091,6 +1146,7 @@ FROM (
     SELECT TOP(1) [c].[CustomerID]
     FROM [Customers] AS [c]
     WHERE [c].[CustomerID] = N'ALFKI'
+    ORDER BY [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
 ORDER BY [t].[CustomerID]
@@ -1140,7 +1196,7 @@ FROM (
             FROM OPENJSON(@__list_0) WITH ([value] nchar(5) '$') AS [l]
         ) THEN CAST(1 AS bit)
         ELSE CAST(0 AS bit)
-    END
+    END, [c].[CustomerID]
     OFFSET @__p_1 ROWS
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
@@ -1172,6 +1228,7 @@ FROM (
     SELECT TOP(1) [c].[CustomerID]
     FROM [Customers] AS [c]
     WHERE [c].[CustomerID] = N'ALFKI'
+    ORDER BY [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
 ORDER BY [t].[CustomerID]
@@ -1383,7 +1440,7 @@ FROM (
         SELECT TOP(1) [o].[OrderDate]
         FROM [Orders] AS [o]
         WHERE [c].[CustomerID] = [o].[CustomerID]
-        ORDER BY [o].[OrderDate] DESC) DESC
+        ORDER BY [o].[OrderDate] DESC) DESC, [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o0] ON [t].[CustomerID] = [o0].[CustomerID]
 ORDER BY [t].[c] DESC, [t].[CustomerID], [o0].[OrderID]
@@ -1403,7 +1460,7 @@ FROM (
         SELECT TOP(1) [o].[OrderDate]
         FROM [Orders] AS [o]
         WHERE [c].[CustomerID] = [o].[CustomerID]
-        ORDER BY [o].[OrderDate] DESC) DESC
+        ORDER BY [o].[OrderDate] DESC) DESC, [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o0] ON [t].[CustomerID] = [o0].[CustomerID]
 INNER JOIN [Order Details] AS [o1] ON [o0].[OrderID] = [o1].[OrderID]
@@ -1587,7 +1644,7 @@ FROM (
             FROM OPENJSON(@__list_0) WITH ([value] nchar(5) '$') AS [l]
         ) THEN CAST(1 AS bit)
         ELSE CAST(0 AS bit)
-    END
+    END, [c].[CustomerID]
     OFFSET @__p_1 ROWS
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
@@ -1649,6 +1706,7 @@ SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate], [t].[
 FROM (
     SELECT TOP(1) [c].[CustomerID]
     FROM [Customers] AS [c]
+    ORDER BY [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
 ORDER BY [t].[CustomerID]
@@ -1766,7 +1824,7 @@ FROM (
             FROM OPENJSON(@__list_0) WITH ([value] nchar(5) '$') AS [l]
         ) THEN CAST(1 AS bit)
         ELSE CAST(0 AS bit)
-    END
+    END, [c].[CustomerID]
     OFFSET @__p_1 ROWS
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
@@ -1907,7 +1965,7 @@ FROM (
     END, CASE
         WHEN [c].[CustomerID] IS NOT NULL THEN [c].[CustomerID]
         ELSE N''
-    END
+    END, [o].[OrderID], [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Order Details] AS [o0] ON [t].[OrderID] = [o0].[OrderID]
 ORDER BY [t].[c], [t].[c0], [t].[OrderID], [t].[CustomerID]
@@ -2105,7 +2163,7 @@ SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate], [t].[
 FROM (
     SELECT [c].[CustomerID], [c].[ContactName]
     FROM [Customers] AS [c]
-    ORDER BY [c].[ContactName]
+    ORDER BY [c].[ContactName], [c].[CustomerID]
     OFFSET @__p_0 ROWS
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
@@ -2133,6 +2191,7 @@ SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate], [t].[
 FROM (
     SELECT TOP(@__p_0) [c].[CustomerID]
     FROM [Customers] AS [c]
+    ORDER BY [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
 ORDER BY [t].[CustomerID]
@@ -2299,7 +2358,7 @@ FROM (
         ORDER BY [c0].[CustomerID]
         OFFSET 2 ROWS FETCH NEXT 2 ROWS ONLY
     ) AS [t0]
-    ORDER BY [t].[CustomerID]
+    ORDER BY [t].[CustomerID], [t0].[CustomerID]
 ) AS [t1]
 INNER JOIN [Orders] AS [o] ON [t1].[CustomerID] = [o].[CustomerID]
 ORDER BY [t1].[CustomerID], [t1].[CustomerID0]
@@ -2416,7 +2475,7 @@ SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate], [t].[
 FROM (
     SELECT TOP(@__p_0) [c].[CustomerID], [c].[ContactTitle]
     FROM [Customers] AS [c]
-    ORDER BY [c].[ContactTitle]
+    ORDER BY [c].[ContactTitle], [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
 ORDER BY [t].[ContactTitle], [t].[CustomerID]
@@ -2443,7 +2502,7 @@ SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate], [t].[
 FROM (
     SELECT TOP(@__p_0) [c].[CustomerID], [c].[ContactName]
     FROM [Customers] AS [c]
-    ORDER BY [c].[ContactName] DESC
+    ORDER BY [c].[ContactName] DESC, [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
 ORDER BY [t].[ContactName] DESC, [t].[CustomerID]
@@ -2549,6 +2608,7 @@ FROM (
     SELECT TOP(1) [c].[CustomerID]
     FROM [Customers] AS [c]
     WHERE [c].[CustomerID] = N'ALFKI'
+    ORDER BY [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
 ORDER BY [t].[CustomerID], [o].[OrderID]
@@ -2560,6 +2620,7 @@ FROM (
     SELECT TOP(1) [c].[CustomerID]
     FROM [Customers] AS [c]
     WHERE [c].[CustomerID] = N'ALFKI'
+    ORDER BY [c].[CustomerID]
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]
 INNER JOIN [Order Details] AS [o0] ON [o].[OrderID] = [o0].[OrderID]
@@ -2590,7 +2651,7 @@ FROM (
     SELECT [c].[CustomerID], [c].[ContactTitle]
     FROM [Customers] AS [c]
     WHERE [c].[CustomerID] LIKE N'F%'
-    ORDER BY [c].[ContactTitle]
+    ORDER BY [c].[ContactTitle], [c].[CustomerID]
     OFFSET @__p_0 ROWS
 ) AS [t]
 INNER JOIN [Orders] AS [o] ON [t].[CustomerID] = [o].[CustomerID]

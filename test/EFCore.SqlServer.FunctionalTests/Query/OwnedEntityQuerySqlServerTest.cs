@@ -61,6 +61,7 @@ FROM (
     LEFT JOIN [MiddleB24777] AS [m] ON [r].[Id] = [m].[RootId]
     LEFT JOIN [ModdleA24777] AS [m0] ON [r].[Id] = [m0].[RootId]
     WHERE [r].[Id] = 3
+    ORDER BY [r].[Id], [m].[Id], [m0].[Id]
 ) AS [t]
 INNER JOIN [Leaf24777] AS [l] ON [t].[Id1] = [l].[ModdleAId]
 ORDER BY [t].[Id], [t].[Id0], [t].[Id1]

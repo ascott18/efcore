@@ -3435,6 +3435,7 @@ FROM (
     SELECT TOP(1) [l].[Id]
     FROM [LevelOne] AS [l]
     WHERE [l].[Id] = 1
+    ORDER BY [l].[Id]
 ) AS [t]
 INNER JOIN [LevelTwo] AS [l0] ON [t].[Id] = [l0].[OneToMany_Optional_Inverse2Id]
 ORDER BY [t].[Id]
@@ -3963,7 +3964,7 @@ FROM (
     FROM [LevelOne] AS [l]
     LEFT JOIN [LevelTwo] AS [l0] ON [l].[Id] = [l0].[Level1_Optional_Id]
     WHERE [l].[Id] = 2
-    ORDER BY [l].[Name]
+    ORDER BY [l].[Name], [l].[Id], [l0].[Id]
 ) AS [t]
 CROSS APPLY (
     SELECT [t1].[Id], [t1].[Date], [t1].[Name], [t1].[OneToMany_Optional_Self_Inverse1Id], [t1].[OneToMany_Required_Self_Inverse1Id], [t1].[OneToOne_Optional_Self1Id], (
